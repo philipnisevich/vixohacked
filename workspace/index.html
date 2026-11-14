@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Band 09 Workspace</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <span class="dot" id="statusDot"></span>
+      <div>
+        <h1>Vexo-HACK-09 <span class="sub">live input workspace</span></h1>
+        <p id="status">Not connected. Double-tap the band (it blinks blue), then press Bluetooth.</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btnBle" class="primary">Bluetooth</button>
+      <button id="btnUsb">USB cable</button>
+      <button id="btnSim">Pretend band</button>
+      <button id="btnOff" disabled>Disconnect</button>
+      <span class="sep"></span>
+      <button id="btnPause" title="Space">Pause</button>
+      <button id="btnRec">● Record</button>
+      <button id="btnSave" disabled>Save recording</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden><span id="bannerText"></span> <button id="bannerBtn" hidden>Take it back</button></div>
+
+  <section class="info" id="info">
+    <div><label>Link</label><b id="iLink">–</b></div>
+    <div><label>Firmware</label><b id="iFw">–</b></div>
+    <div><label>Features</label><b id="iFeat">–</b></div>
+    <div><label>Clock</label><b id="iClock">–</b></div>
+    <div><label>Motion rate</label><b id="iRate">–</b></div>
+    <div><label>Samples lost</label><b id="iLost">0</b></div>
+    <div><label>Recording</label><b id="iRec">off</b></div>
+  </section>
+
+  <main class="grid">
+    <!-- Accelerometer -->
+    <section class="panel span8">
+      <div class="head">
+        <h2>Acceleration <small>g</small></h2>
+        <div class="legend" data-chart="accel"></div>
+        <div class="ctl">
+          <label>Rate <select id="selRate"></select></label>
+          <label>Sensors <select id="selSensors"><option value="both">both</option><option value="accel">accel only</option><option value="gyro">gyro only</option></select></label>
+          <label>Range <select id="selRange"><option>2</option><option>4</option><option selected>8</option><option>16</option></select> g</label>
+          <label>Window <select id="selWin"><option value="5000">5 s</option><option value="10000" selected>10 s</option><option value="30000">30 s</option></select></label>
+        </div>
+      </div>
+      <canvas id="cAccel" class="chart tall"></canvas>
+      <div class="readout" id="rAccel"></div>
+    </section>
+
+    <!-- Orientation -->
+    <section class="panel span4">
+      <div class="head"><h2>Orientation <small>accel + gyro fusion</small></h2><div class="ctl"><button id="btnZero" class="small">Zero yaw</button></div></div>
+      <canvas id="cOri" class="chart tall"></canvas>
+      <div class="readout" id="rOri"></div>
+    </section>
+
+    <!-- Gyro -->
+    <section class="panel span8">
+      <div class="head">
+        <h2>Turning speed <small>°/s</small></h2>
+        <div class="legend" data-chart="gyro"></div>
+        <div class="ctl"><label>Gyro range <select id="selGyro"><option>250</option><option>500</option><option>1000</option><option selected>2000</option></select> °/s</label></div>
+      </div>
+      <canvas id="cGyro" class="chart"></canvas>
+      <div class="readout" id="rGyro"></div>
+    </section>
+
+    <!-- Gestures -->
+    <section class="panel span4">
+      <div class="head"><h2>Gestures <small>last 60 s</small></h2>
+        <div class="ctl"><label>Tap threshold <input id="tapTh" type="range" min="0.2" max="4" step="0.1" value="0.8"> <b id="tapThV">0.8</b> g</label></div>
+      </div>
+      <canvas id="cGest" class="chart"></canvas>
+      <div class="chips" id="gestChips"></div>
+    </section>
+
+    <!-- Microphone -->
+    <section class="panel span8">
+      <div class="head">
+        <h2>Microphone</h2>
+        <div class="ctl">
+          <label>Mic <select id="selMic"><option value="off" selected>off</option><option value="level">loudness only</option><option value="audio">loudness + sound</option></select></label>
+          <label>Gain <input id="micGain" type="range" min="-20" max="20" step="0.5" value="20"> <b id="micGainV">+20</b> dB</label>
+          <label class="check"><input type="checkbox" id="chkListen"> play through speakers</label>
+        </div>
+      </div>
+      <p class="note" id="micNote">Microphone is off. Turning it on lights the band solid blue and locks the LED. Tell the people near you first.</p>
+      <div class="micgrid">
+        <div><div class="cap">Spectrogram (0–8 kHz)</div><canvas id="cSpec" class="chart"></canvas></div>
+        <div><div class="cap">Waveform, last 3 s <span id="scopeGain"></span></div><canvas id="cScope" class="chart"></canvas></div>
+      </div>
+      <div class="cap">Loudness <small>dBFS (0 = loudest)</small> <span class="legend inline" data-chart="mic"></span></div>
+      <canvas id="cMic" class="chart short"></canvas>
+    </section>
+
+    <!-- Activity -->
+    <section class="panel span4">
+      <div class="head"><h2>Activity</h2></div>
+      <div class="stats">
+        <div><label>Steps since connect</label><b id="aSteps">–</b></div>
+        <div><label>Lifetime steps</label><b id="aTotal">–</b></div>
+        <div><label>Cadence</label><b id="aCad">–</b><small> spm</small></div>
+        <div><label>State</label><b id="aState" class="pill">–</b></div>
+      </div>
+      <div class="cap">Cadence (steps/min) and activity motion (g×100), 5 min</div>
+      <canvas id="cAct" class="chart short"></canvas>
+      <div class="cap">Steps since connect</div>
+      <canvas id="cSteps" class="chart short"></canvas>
+    </section>
+
+    <!-- Vitals -->
+    <section class="panel span4">
+      <div class="head"><h2>Battery</h2></div>
+      <div class="battery"><div class="cell"><div id="batFill"></div></div><b id="batPct">–</b></div>
+      <div class="stats two">
+        <div><label>Voltage</label><b id="batMv">–</b><small> mV</small></div>
+        <div><label>State</label><b id="batState">–</b></div>
+      </div>
+      <canvas id="cBat" class="chart short"></canvas>
+    </section>
+
+    <section class="panel span4">
+      <div class="head"><h2>Signal <small>dBm</small></h2><div class="ctl"><b id="sigV" class="big">–</b></div></div>
+      <canvas id="cRssi" class="chart short"></canvas>
+      <div class="head"><h2>Chip temperature <small>°C (not skin)</small></h2><div class="ctl"><b id="tempV" class="big">–</b></div></div>
+      <canvas id="cTemp" class="chart short"></canvas>
+    </section>
+
+    <section class="panel span4">
+      <div class="head"><h2>Streams</h2></div>
+      <table class="health"><thead><tr><th>stream</th><th>/s</th><th>total</th><th>last</th></tr></thead><tbody id="health"></tbody></table>
+    </section>
+
+    <!-- LED -->
+    <section class="panel span4">
+      <div class="head"><h2>LED <small>output</small></h2></div>
+      <div class="led">
+        <input type="color" id="ledColor" value="#00e0a0">
+        <label>Pattern <select id="ledPattern"><option>solid</option><option>blink</option><option>breathe</option><option>flash</option><option>rainbow</option></select></label>
+        <label>Brightness <input type="range" id="ledBright" min="0.05" max="1" step="0.05" value="0.6"></label>
+        <label>Period <input type="number" id="ledPeriod" min="100" max="10000" step="100" value="1000"> ms</label>
+        <div class="row"><button id="ledSet">Set</button><button id="ledOff">Off</button><button id="ledId">Identify</button></div>
+        <p class="note" id="ledNote"></p>
+      </div>
+    </section>
+
+    <section class="panel span8">
+      <div class="head"><h2>Event log</h2><div class="ctl"><button id="btnClearLog" class="small">Clear</button></div></div>
+      <ol class="log" id="log"></ol>
+    </section>
+  </main>
+
+  <script>
+    if (location.protocol === 'file:') document.getElementById('status').textContent =
+      'Opened by double-click: this cannot load the library. In the vexohacks folder run  python3 -m http.server 8000 --bind 127.0.0.1  then open http://localhost:8000/workspace/';
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -119,3 +119,6 @@ label, .info label, .stats label { color: var(--muted); font-size: 11px; }
 .log time { color: var(--muted); flex: none; }
 .log .k { flex: none; min-width: 90px; }
 .log .err { color: var(--bad); }
+
+.navlink { font-size: 12px; font-weight: 500; color: var(--accent); text-decoration: none; margin-left: 10px; border: 1px solid var(--line); padding: 2px 8px; border-radius: 999px; }
+.navlink:hover { border-color: var(--accent); }

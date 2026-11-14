@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Vexo</title>
+<style>
+  :root {
+    --bg: #07090c; --panel: #0f1318; --line: #1e252e; --text: #e8edf2; --muted: #7d8996;
+    --yes: #19e36b; --no: #ff3b3b; --unsure: #ffb000; --listen: #2f7bff; --think: #8a5cff; --search: #c050ff; --idle: #c9d3dd;
+    --orb: var(--idle);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; }
+  body { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 100vh; }
+  @media (max-width: 900px) { body { grid-template-columns: 1fr; } aside { border-left: 0 !important; border-top: 1px solid var(--line); } }
+
+  main { display: flex; flex-direction: column; align-items: center; padding: 28px 20px 40px; gap: 18px; position: relative; overflow: hidden; }
+  main::before { content: ""; position: absolute; inset: -20%; pointer-events: none;
+    background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--orb) 18%, transparent), transparent 55%);
+    transition: background 0.6s; }
+  header { width: 100%; max-width: 760px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+  .brand { font-weight: 700; letter-spacing: 0.02em; font-size: 17px; }
+  .brand span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .navlink { font-size: 12px; font-weight: 500; color: var(--listen); text-decoration: none; margin-left: 10px; border: 1px solid var(--line); padding: 3px 9px; border-radius: 999px; }
+  .navlink:hover { border-color: var(--listen); }
+  .link { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .link i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .link.on i { background: var(--yes); box-shadow: 0 0 8px var(--yes); }
+  .link.wait i { background: var(--unsure); animation: blink 1s infinite; }
+  .link.off i { background: var(--no); }
+
+  .stage { position: relative; width: min(360px, 78vw); aspect-ratio: 1; margin-top: 10px; z-index: 1; }
+  canvas#ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .orb { position: absolute; inset: 16%; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, color-mix(in srgb, var(--orb) 55%, white) 0%, var(--orb) 38%, color-mix(in srgb, var(--orb) 35%, black) 100%);
+    box-shadow: 0 0 60px color-mix(in srgb, var(--orb) 55%, transparent), inset 0 -18px 40px rgba(0,0,0,0.35);
+    display: grid; place-items: center; transition: background 0.4s, box-shadow 0.4s, transform 0.3s; }
+  .orb .word { font-size: clamp(38px, 9vw, 64px); font-weight: 800; letter-spacing: 0.04em; color: #06100a; text-shadow: 0 1px 0 rgba(255,255,255,0.25); }
+  .orb.idle { animation: breathe 3s ease-in-out infinite; opacity: 0.55; }
+  .orb.thinking { animation: breathe 0.8s ease-in-out infinite; }
+  .orb.unsure { animation: blink 0.4s steps(1) infinite; }
+  .orb.pop { transform: scale(1.06); }
+  @keyframes breathe { 50% { filter: brightness(0.55); transform: scale(0.97); } }
+  @keyframes blink { 50% { opacity: 0.25; } }
+
+  .phase { font-size: 13px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); z-index: 1; min-height: 1.4em; }
+  .heard { font-size: clamp(20px, 3vw, 28px); font-weight: 600; text-align: center; max-width: 720px; min-height: 1.4em; z-index: 1; }
+  .heard.empty { color: var(--muted); font-weight: 400; }
+  .reason { color: var(--muted); text-align: center; max-width: 620px; min-height: 1.4em; z-index: 1; }
+  .search { z-index: 1; max-width: 620px; background: color-mix(in srgb, var(--search) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--search) 40%, transparent); border-radius: 10px; padding: 10px 14px; display: grid; gap: 4px; }
+  .search b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--search); }
+  .search span { font-weight: 600; }
+  .search small { color: var(--muted); font-size: 13px; }
+  .search[hidden] { display: none; }
+  .error { color: #ffb4b4; background: #2a1013; border: 1px solid #5b1d24; padding: 8px 12px; border-radius: 8px; max-width: 620px; z-index: 1; }
+
+  .controls { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 560px; z-index: 1; }
+  .row { display: flex; gap: 8px; }
+  button { font: inherit; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 12px 18px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #34404d; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.big { flex: 1; font-weight: 700; font-size: 16px; padding: 15px; }
+  button.go { background: var(--listen); border-color: var(--listen); color: white; }
+  button.send { background: var(--text); color: var(--bg); border-color: var(--text); }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  input[type=text]:focus { outline: 2px solid var(--listen); outline-offset: -1px; }
+  .hint { color: var(--muted); font-size: 13px; text-align: center; }
+  kbd { font: 12px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; }
+  .mic { font-size: 12px; color: #9fc3ff; text-align: center; min-height: 1.2em; }
+
+  aside { border-left: 1px solid var(--line); background: var(--panel); padding: 22px 18px; display: flex; flex-direction: column; gap: 14px; max-height: 100vh; position: sticky; top: 0; }
+  aside h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+  .tally { display: flex; gap: 8px; }
+  .tally div { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .tally b { display: block; font-size: 22px; }
+  .tally small { color: var(--muted); font-size: 11px; }
+  ol { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  li { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  li .chip { grid-row: span 2; align-self: start; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; color: #06100a; }
+  li .q { font-weight: 600; }
+  li .m { color: var(--muted); font-size: 12px; }
+  .empty-list { color: var(--muted); font-size: 13px; }
+  audio { width: 100%; height: 34px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">Ask Vexo <span>yes or no</span> <a class="navlink" href="/workspace/?live=1">Sensor stats →</a></div>
+    <div class="link" id="link"><i></i><span id="linkText">connecting…</span></div>
+  </header>
+
+  <div class="stage">
+    <canvas id="ring"></canvas>
+    <div class="orb idle" id="orb"><span class="word" id="word"></span></div>
+  </div>
+
+  <div class="phase" id="phase">starting</div>
+  <div class="heard empty" id="heard">Double-tap your band and ask a yes-or-no question.</div>
+  <div class="reason" id="reason"></div>
+  <div class="search" id="search" hidden><b>Web search</b> <span id="searchQ"></span><small id="searchFound"></small></div>
+  <div class="error" id="error" hidden></div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="big go" id="ask">Ask by voice</button>
+      <button class="big send" id="send" disabled>Send question</button>
+    </div>
+    <form id="typed">
+      <input type="text" id="q" placeholder="…or type a yes-or-no question" maxlength="500" autocomplete="off">
+      <button type="submit">Ask</button>
+    </form>
+    <div class="hint">On the band: <b>double-tap</b> to start listening, <b>single tap</b> to send. Here: <kbd>Space</kbd> starts / sends.</div>
+    <div class="mic" id="mic"></div>
+  </div>
+</main>
+
+<aside>
+  <h2>Answers</h2>
+  <div class="tally">
+    <div><b id="nYes" style="color:var(--yes)">0</b><small>yes</small></div>
+    <div><b id="nNo" style="color:var(--no)">0</b><small>no</small></div>
+    <div><b id="nUnsure" style="color:var(--unsure)">0</b><small>unsure</small></div>
+  </div>
+  <h2>History</h2>
+  <ol id="history"><li class="empty-list">No questions yet.</li></ol>
+  <h2>Last recording</h2>
+  <audio id="rec" controls preload="none"></audio>
+</aside>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const root = document.documentElement;
+const COLORS = { yes: 'var(--yes)', no: 'var(--no)', unsure: 'var(--unsure)', listening: 'var(--listen)', thinking: 'var(--think)', searching: 'var(--search)', idle: 'var(--idle)' };
+const PHASE_TEXT = {
+  starting: 'starting', searching: 'looking for your band — double-tap it', idle: 'ready',
+  listening: 'listening — tap the band or press Send when done', thinking: 'thinking', searching: 'searching the web',
+  answer: 'answer', nothing: 'did not hear a question', error: 'problem', disconnected: 'band disconnected',
+};
+let state = null;
+let levels = [];            // recent mic levels for the ring
+let lastAnswerKey = '';
+
+function render(s) {
+  const prev = state; state = s;
+  // link
+  const link = $('link');
+  const on = ['ble', 'serial', 'sim'].includes(s.link);
+  link.className = 'link ' + (on ? 'on' : s.link === 'disconnected' ? 'off' : 'wait');
+  $('linkText').textContent = on ? `${s.band} · ${s.link === 'ble' ? 'Bluetooth' : s.link === 'serial' ? 'USB' : 'pretend band'}` : `${s.band} · ${s.link}`;
+  // orb
+  const orb = $('orb');
+  let colorKey = 'idle', cls = 'idle', word = '';
+  if (s.phase === 'listening') { colorKey = 'listening'; cls = 'listening'; }
+  else if (s.phase === 'thinking') { colorKey = 'thinking'; cls = 'thinking'; }
+  else if (s.phase === 'searching') { colorKey = 'searching'; cls = 'thinking'; word = '⌕'; }
+  else if (s.phase === 'answer' && s.answer) { colorKey = s.answer; cls = s.answer === 'unsure' ? 'unsure' : 'answer'; word = s.answer === 'unsure' ? '?' : s.answer.toUpperCase(); }
+  else if (s.phase === 'nothing') { colorKey = 'unsure'; cls = 'unsure'; word = '…'; }
+  root.style.setProperty('--orb', COLORS[colorKey]);
+  orb.className = 'orb ' + cls;
+  $('word').textContent = word;
+  if (s.phase === 'answer') {
+    const key = s.history[0] ? s.history[0].time + s.history[0].heard : '';
+    if (key !== lastAnswerKey) { lastAnswerKey = key; orb.classList.add('pop'); setTimeout(() => orb.classList.remove('pop'), 250); }
+  }
+  // text
+  $('phase').textContent = PHASE_TEXT[s.phase] || s.phase;
+  const heard = $('heard');
+  if (s.heard) { heard.textContent = `“${s.heard}”`; heard.className = 'heard'; }
+  else if (s.phase === 'listening') { heard.textContent = 'Ask your question…'; heard.className = 'heard empty'; }
+  else if (s.phase === 'idle' && !prev?.heard) { heard.textContent = 'Double-tap your band and ask a yes-or-no question.'; heard.className = 'heard empty'; }
+  $('reason').textContent = s.phase === 'answer' ? s.reason : '';
+  const sr = $('search');
+  sr.hidden = !s.search || !['searching', 'thinking', 'answer'].includes(s.phase);
+  $('searchQ').textContent = s.search || '';
+  $('searchFound').textContent = s.phase === 'searching' ? 'looking it up…' : (s.found || '');
+  $('error').hidden = !s.error; $('error').textContent = s.error || '';
+  $('mic').textContent = s.phase === 'listening' ? '● Microphone on (band is solid blue). The sound goes to OpenAI.' : '';
+  // buttons
+  const ready = on && ['idle', 'answer', 'nothing', 'error'].includes(s.phase);
+  $('ask').disabled = !ready;
+  $('send').disabled = s.phase !== 'listening';
+  // history
+  const ol = $('history'); ol.textContent = '';
+  if (!s.history.length) { const li = document.createElement('li'); li.className = 'empty-list'; li.textContent = 'No questions yet.'; ol.append(li); }
+  const n = { yes: 0, no: 0, unsure: 0 };
+  for (const h of s.history) {
+    n[h.answer] = (n[h.answer] || 0) + 1;
+    const li = document.createElement('li');
+    const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = h.answer.toUpperCase();
+    chip.style.background = COLORS[h.answer];
+    const q = document.createElement('span'); q.className = 'q'; q.textContent = h.heard || '(nothing)';
+    const m = document.createElement('span'); m.className = 'm'; m.textContent = `${h.time} · ${h.source}${h.search ? ' · searched “' + h.search + '”' : ''} · ${h.reason}`;
+    li.append(chip, q, m); ol.append(li);
+  }
+  $('nYes').textContent = n.yes; $('nNo').textContent = n.no; $('nUnsure').textContent = n.unsure;
+  // refresh the recording after a voice question
+  if (prev && prev.phase === 'listening' && s.phase !== 'listening') $('rec').src = '/last-question.wav?' + Date.now();
+  if (s.phase === 'listening' && prev?.phase !== 'listening') levels = [];
+}
+
+// mic level ring
+const ring = $('ring');
+function drawRing() {
+  requestAnimationFrame(drawRing);
+  const dpr = devicePixelRatio || 1, w = ring.clientWidth * dpr, h = ring.clientHeight * dpr;
+  if (ring.width !== w) { ring.width = w; ring.height = h; }
+  const ctx = ring.getContext('2d'); ctx.clearRect(0, 0, w, h);
+  if (!state || state.phase !== 'listening' || !levels.length) return;
+  const cx = w / 2, cy = h / 2, r0 = w * 0.36, n = 96;
+  const recent = levels.slice(-n);
+  ctx.strokeStyle = getComputedStyle(root).getPropertyValue('--listen').trim();
+  ctx.lineCap = 'round'; ctx.lineWidth = 3 * dpr;
+  recent.forEach((lv, i) => {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const amt = Math.max(0, Math.min(1, (lv.db - lv.floor) / 30));
+    const len = 6 * dpr + amt * w * 0.12;
+    ctx.globalAlpha = 0.25 + 0.75 * (i / recent.length);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    ctx.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len));
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+}
+requestAnimationFrame(drawRing);
+
+// server connection
+function connect() {
+  const es = new EventSource('/events');
+  es.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'state') render(m.state);
+    else if (m.type === 'level') { levels.push(m); if (levels.length > 200) levels.splice(0, levels.length - 200); }
+  };
+  es.onerror = () => {
+    $('link').className = 'link off'; $('linkText').textContent = 'server not running';
+    $('ask').disabled = true;
+  };
+}
+connect();
+
+const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+$('ask').onclick = () => post('/ask');
+$('send').onclick = () => post('/send');
+$('typed').onsubmit = (e) => {
+  e.preventDefault();
+  const q = $('q').value.trim(); if (!q) return;
+  post('/text', { question: q }); $('q').value = '';
+};
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' || e.target.tagName === 'INPUT') return;
+  e.preventDefault();
+  if (!$('send').disabled) $('send').click(); else if (!$('ask').disabled) $('ask').click();
+});
+</script>
+</body>
+</html>

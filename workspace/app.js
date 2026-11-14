@@ -89,7 +89,7 @@ function record(stream, obj) { if (rec.on) (rec.data[stream] ||= []).push(obj); 
 const fx = (v, d = 2) => (v === null || v === undefined || Number.isNaN(v) ? '–' : (v >= 0 ? ' ' : '') + v.toFixed(d));
 
 function setConnectedUI(on) {
-  for (const id of ['btnBle', 'btnUsb', 'btnSim']) $(id).disabled = on;
+  for (const id of ['btnBle', 'btnUsb', 'btnSim', 'btnSrv']) $(id).disabled = on;
   $('btnOff').disabled = !on;
 }
 
@@ -148,6 +148,66 @@ async function showInfo() {
     sel.append(o);
   }
   sel.value = String(Math.min(want, max));
+}
+
+// ---------- read-only: data from the Ask Vexo server (it holds the band) ----------
+const SERVER = location.port === '8000' ? 'http://localhost:8765' : '';   // same server unless opened from the :8000 file server
+const READONLY = 'Ask Vexo holds the band, so this view is read-only. Use the Ask Vexo page to ask, or stop its server to control the band here.';
+
+function serverBand() {
+  const handlers = {};
+  const target = {
+    name: 'Vexo-HACK-09', number: BAND, transportKind: 'ask-vexo', streams: { motion: 25 }, connected: true, readonly: true,
+    clock: 'band', info: {}, es: null,
+    on(n, f) { (handlers[n] ||= []).push(f); return () => {}; },
+    emit(n, d) { for (const f of handlers[n] || []) f(d); },
+    async disconnect() { this.es?.close(); this.connected = false; this.emit('disconnect', { reason: 'closed' }); },
+  };
+  return new Proxy(target, { get: (t, k) => (k in t ? t[k] : typeof k === 'string' ? async () => { throw new Error(READONLY); } : undefined) });
+}
+
+function connectServer() {
+  if (band) return;
+  setConnectedUI(true);
+  status('Connecting to the Ask Vexo server…', 'wait');
+  const b = serverBand();
+  const es = new EventSource(SERVER + '/events');
+  b.es = es;
+  let lastQ = '', first = true;
+  es.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === 'sensor') b.emit(m.kind, m.data);
+    else if (m.type === 'level') b.emit('mic-level', { t: 0, rmsDb: -m.db, peakDb: -m.db, level: 1 + m.db / 96, time: Date.now() });
+    else if (m.type === 'state') {
+      const s = m.state;
+      if (first) {
+        first = false;
+        band = b; resetData(); wire(b);
+        $('selRate').innerHTML = '<option>25/s</option>';
+        for (const id of ['selRate', 'selSensors', 'selRange', 'selGyro', 'tapTh', 'selMic', 'micGain', 'chkListen']) $(id).disabled = true;
+        log('connect', 'reading the band through Ask Vexo (read-only)');
+      }
+      const i = s.info || {};
+      $('iLink').textContent = `${i.link || s.link} via Ask Vexo`;
+      $('iFw').textContent = i.firmware ? `${i.firmware} (protocol ${i.protocol})` : '–';
+      $('iFeat').textContent = (i.features || []).join(' ') || '–';
+      $('iClock').textContent = i.clock || '–';
+      $('iRate').textContent = `${i.motion || 25}/s`;
+      const live = ['ble', 'serial', 'sim'].includes(s.link);
+      status(live ? `Live from Ask Vexo: ${s.band} over ${s.link === 'ble' ? 'Bluetooth' : s.link}. Read-only view; ask questions on the Ask Vexo page.`
+                  : `Ask Vexo server: band ${s.link}.`, live ? 'on' : 'wait');
+      const h = s.history?.[0];
+      const key = h ? h.time + h.heard : '';
+      if (h && key !== lastQ) { if (lastQ || s.phase === 'answer') log('vexo', `“${h.heard}” → ${h.answer.toUpperCase()}${h.search ? ' (searched)' : ''}`); lastQ = key; }
+      if (s.phase === 'listening') { micMode = 'level'; } else if (micMode !== 'off' && b.readonly) { micMode = 'off'; }
+      updateMicNote();
+      if (s.phase === 'listening') $('micNote').textContent = '● Ask Vexo is listening (band solid blue). Loudness below; the sound itself goes to OpenAI from the server.';
+    }
+  };
+  es.onerror = () => {
+    if (first) { es.close(); setConnectedUI(false); status('The Ask Vexo server is not running. Start it with  .venv/bin/python yesno_server.py'); }
+    else status('Lost the Ask Vexo server. It will retry by itself…', 'wait');
+  };
 }
 
 async function disconnect() {
@@ -394,6 +454,8 @@ requestAnimationFrame(frame);
 $('btnBle').onclick = () => connect('ble');
 $('btnUsb').onclick = () => connect('serial');
 $('btnSim').onclick = () => connect('sim');
+$('btnSrv').onclick = connectServer;
+if (new URLSearchParams(location.search).has('live')) connectServer();
 $('btnOff').onclick = disconnect;
 $('btnPause').onclick = () => { paused = !paused; $('btnPause').textContent = paused ? 'Resume' : 'Pause'; };
 document.addEventListener('keydown', (e) => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); $('btnPause').click(); } });
